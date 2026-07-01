@@ -12,7 +12,7 @@ const Footer = () => {
           
           {/* 1. البراند ونبذة */}
           <div className="space-y-6">
-            <h3 className="text-2xl font-black text-white">سمحان<span className="text-orange-500">.</span></h3>
+            <h3 className="text-2xl font-black text-white">Samhan<span className="text-orange-500">.</span></h3>
             <p className="text-sm leading-relaxed text-[#737373]">
               استوديو تقني متكامل، ندمج بين التفكير الإبداعي والتنفيذ البرمجي الدقيق لنصنع منتجات رقمية عالمية.
             </p>
