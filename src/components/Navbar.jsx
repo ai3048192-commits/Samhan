@@ -129,7 +129,7 @@ function Navbar() {
           {/* زر الأدمن */}
           {isAdmin && (
             <a
-              href="https://dashboard74.vercel.app/"
+              href="https://dashboard22-blush.vercel.app/"
               target="_blank"
               rel="noopener noreferrer"
               className="relative p-3 rounded-2xl text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all duration-300 group shadow-[0_0_15px_rgba(16,185,129,0.1)] flex items-center justify-center"
@@ -174,7 +174,7 @@ function Navbar() {
           {/* إذا كان هو الأدمن يظهر زر لوحة التحكم، وإذا لم يكن مسجلاً بهذا الإيميل لا يظهر أي شيء نهائياً */}
           {isAdmin && (
             <a
-              href="https://dashboard74.vercel.app/"
+              href="https://dashboard22-blush.vercel.app/"
               target="_blank"
               rel="noopener noreferrer"
               className="text-green-500 font-bold flex items-center gap-2 bg-green-500/10 px-4 py-1.5 rounded-full border border-green-500/20 hover:bg-green-500/20 transition-all"
