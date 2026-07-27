@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { supabase } from "../lib/supabaseClient";
 
+// 📌 دالة جلب صورة الـ Gravatar تلقائياً من الإيميل
 async function getGravatarUrl(email) {
   if (!email) return "";
   const trimmed = email.trim().toLowerCase();
@@ -12,7 +13,8 @@ async function getGravatarUrl(email) {
   const hashHex = hashArray
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
-  return `https://www.gravatar.com/avatar/${hashHex}?d=mp&s=200`;
+  // d=404 تعني لو الإيميل ليس له صورة على Gravatar، ترجع خطأ ولا تعرض صورة عشوائية سيئة
+  return `https://www.gravatar.com/avatar/${hashHex}?d=404&s=200`;
 }
 
 function ContactAndComments() {
@@ -46,6 +48,8 @@ function ContactAndComments() {
     }
 
     setIsSubmitting(true);
+    
+    // جلب رابط صورة Gravatar تلقائياً بناءً على الإيميل المُدخل
     const avatarUrl = await getGravatarUrl(formData.email);
 
     const { error } = await supabase.from("comments").insert([
@@ -77,7 +81,7 @@ function ContactAndComments() {
       <div className="absolute bottom-10 left-10 w-[400px] h-[400px] bg-amber-500/5 blur-[120px] pointer-events-none rounded-full" />
 
       <div className="max-w-7xl mx-auto grid lg:grid-cols-12 gap-12 items-start relative z-10">
-        {/* الفورم (ثابت بذكاء على الشاشات الكبيرة) */}
+        {/* الفورم */}
         <div className="lg:col-span-5 relative lg:sticky lg:top-24">
           <div className="p-8 md:p-10 rounded-[2.5rem] bg-[#0A0A0E] border border-white/10 shadow-2xl backdrop-blur-2xl relative overflow-hidden">
             <div className="absolute -top-24 -right-24 w-48 h-48 bg-orange-500/10 rounded-full blur-3xl pointer-events-none" />
@@ -177,7 +181,7 @@ function ContactAndComments() {
           </div>
         </div>
 
-        {/* قسم التعليقات (ديزاين فخم ومرن يظهر بالكامل) */}
+        {/* قسم التعليقات */}
         <div className="lg:col-span-7 flex flex-col gap-6">
           <div className="flex items-center justify-between border-b border-white/10 pb-5">
             <div>
@@ -201,49 +205,55 @@ function ContactAndComments() {
                   : "U";
 
                 return (
-       <motion.div 
-  key={c.id || i}
-  initial={{ opacity: 0, y: 20 }}
-  whileInView={{ opacity: 1, y: 0 }}
-  viewport={{ once: true }}
-  transition={{ duration: 0.4, delay: i * 0.04 }}
-  className="p-5 md:p-6 bg-[#0D0D12] rounded-2xl border border-white/10 hover:border-orange-500/40 flex flex-col justify-between transition-all duration-300 group shadow-lg relative overflow-hidden backdrop-blur-xl"
->
-  <div className="relative z-10">
-    {/* رأس البطاقة: الاسم والصورة يمين */}
-    <div className="flex items-center justify-end gap-3 mb-3">
-      <div className="text-right min-w-0">
-        <h4 className="text-white font-bold text-sm truncate group-hover:text-orange-400 transition-colors">{c.name}</h4>
-      </div>
-      <div className="relative shrink-0">
-        {c.avatar_url ? (
-          <img 
-            src={c.avatar_url} 
-            alt={c.name} 
-            className="w-10 h-10 rounded-full object-cover ring-2 ring-orange-500/30 group-hover:ring-orange-500 transition-all shadow-sm"
-            onError={(e)=>{ e.target.style.display = 'none'; }} 
-          />
-        ) : (
-          <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-orange-600 to-amber-500 flex items-center justify-center text-white font-bold text-xs shadow-sm">
-            {firstLetter}
-          </div>
-        )}
-      </div>
-    </div>
+                  <motion.div
+                    key={c.id || i}
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 0.4, delay: i * 0.04 }}
+                    className="p-5 md:p-6 bg-[#0D0D12] rounded-2xl border border-white/10 hover:border-orange-500/40 flex flex-col justify-between transition-all duration-300 group shadow-lg relative overflow-hidden backdrop-blur-xl"
+                  >
+                    <div className="relative z-10">
+                      {/* رأس البطاقة: الاسم والصورة يمين */}
+                      <div className="flex items-center justify-end gap-3 mb-3">
+                        <div className="text-right min-w-0">
+                          <h4 className="text-white font-bold text-sm truncate group-hover:text-orange-400 transition-colors">
+                            {c.name}
+                          </h4>
+                        </div>
+                        <div className="relative shrink-0">
+                          {c.avatar_url ? (
+                            <img
+                              src={c.avatar_url}
+                              alt={c.name}
+                              className="w-10 h-10 rounded-full object-cover ring-2 ring-orange-500/30 group-hover:ring-orange-500 transition-all shadow-sm"
+                              // لو رابط الـ Gravatar رجع خطأ 404 (يعني ملوش صورة)، اخفِ الـ img فوراً واظهر الحرف تلقائياً
+                              onError={(e) => {
+                                e.target.style.display = "none";
+                              }}
+                            />
+                          ) : null}
+                          
+                          {/* العنصر البديل يظهر تلقائياً لو الـ img اختفت أو لم تكن موجودة */}
+                          <div className={`w-10 h-10 rounded-full bg-gradient-to-tr from-orange-600 to-amber-500 items-center justify-center text-white font-bold text-xs shadow-sm ${c.avatar_url ? 'absolute inset-0 -z-10 flex' : 'flex'}`}>
+                            {firstLetter}
+                          </div>
+                        </div>
+                      </div>
 
-    {/* النجوم يمين */}
-    <div className="flex justify-end gap-1 text-amber-400 text-xs mb-3">
-      {Array.from({ length: c.rating || 5 }).map((_, idx) => (
-        <span key={idx}>★</span>
-      ))}
-    </div>
+                      {/* النجوم يمين */}
+                      <div className="flex justify-end gap-1 text-amber-400 text-xs mb-3">
+                        {Array.from({ length: c.rating || 5 }).map((_, idx) => (
+                          <span key={idx}>★</span>
+                        ))}
+                      </div>
 
-    {/* نص التعليق يمين وبخط أنحف وأرتب */}
-    <p className="text-stone-300 text-xs md:text-sm leading-relaxed font-light text-right">
-      {c.text}
-    </p>
-  </div>
-</motion.div>
+                      {/* نص التعليق يمين */}
+                      <p className="text-stone-300 text-xs md:text-sm leading-relaxed font-light text-right">
+                        {c.text}
+                      </p>
+                    </div>
+                  </motion.div>
                 );
               })
             ) : (
