@@ -21,15 +21,6 @@ function PortfolioSection() {
   const [error, setError] = useState(null);
 
   // قائمة الفئات الرئيسية
-  const categories = [
-    "All",
-    "Brand Identity",
-    "Social Media Design",
-    "Print Design",
-    "Packaging Design",
-    "Photo Manipulation",
-    "Presentation Design",
-  ];
 
   // جلب المشاريع من جدول items
   const fetchProjects = async () => {
@@ -122,24 +113,7 @@ function PortfolioSection() {
         </div>
 
         {/* قسم الفلتر */}
-        <div className="flex justify-center gap-2 mb-16 flex-wrap">
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => {
-                setFilter(cat);
-                console.log("🔍 تم اختيار الفئة:", cat);
-              }}
-              className={`px-5 py-2 rounded-full text-sm font-medium transition-all duration-300 border ${
-                filter === cat
-                  ? "bg-white text-black border-white"
-                  : "bg-transparent text-stone-400 border-stone-800 hover:border-stone-600"
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
+
 
         {/* شبكة المشاريع */}
         {displayedProjects.length > 0 ? (
