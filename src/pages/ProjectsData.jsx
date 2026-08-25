@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, ExternalLink, Sparkles, Image as ImageIcon, FileText, X } from "lucide-react";
 
 export default function ProjectsData() {
   const { id } = useParams();
@@ -14,66 +14,84 @@ export default function ProjectsData() {
   const [docs, setDocs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [selectedImage, setSelectedImage] = useState(null);
 
   useEffect(() => {
     const fetchProjectData = async () => {
       try {
         setLoading(true);
-        console.log("🔄 جاري جلب بيانات المشروع:", id);
+        console.log("🔄 جاري البحث عن المشروع بالمعرف:", id);
 
-        // 1. جلب بيانات المشروع الرئيسي من جدول items
-        const { data: mainData, error: mainError } = await supabase
-          .from("items")
-          .select("*")
-          .eq("id", parseInt(id))
-          .single();
+        let allRecords = [];
 
-        if (mainError) {
-          console.error("❌ خطأ في جلب المشروع:", mainError);
-          throw mainError;
+        // 1. جلب البيانات من جدول projects
+        const { data: projData, error: projError } = await supabase.from("projects").select("*");
+        if (!projError && projData) {
+          allRecords = [...allRecords, ...projData];
         }
 
-        if (!mainData) {
-          throw new Error("المشروع غير موجود");
+        // 2. جلب البيانات من جدول items
+        const { data: itemsData, error: itemsError } = await supabase.from("items").select("*");
+        if (!itemsError && itemsData) {
+          allRecords = [...allRecords, ...itemsData];
         }
 
-        console.log("✅ تم جلب المشروع:", mainData);
+        // 3. جلب البيانات من جدول portfolio_projects الرئيسي (لضمان تغطية الـ ID 22 أو أي مشروع جديد)
+        const { data: mainProjData, error: mainProjError } = await supabase.from("portfolio_projects").select("*");
+        if (!mainProjError && mainProjData) {
+          allRecords = [...allRecords, ...mainProjData];
+        }
 
-        // 2. جلب الصور من جدول portfolios المرتبطة بهذا المشروع
+        console.log("📋 إجمالي السجلات المسترجعة:", allRecords);
+
+        if (allRecords.length === 0) {
+          throw new Error("لا توجد أي بيانات في الجداول. تأكد من إضافة مشاريع في قاعدة البيانات.");
+        }
+
+        // البحث عن المشروع المطابق للـ ID
+        let foundProject = allRecords.find(
+          (item) => String(item.id) === String(id) || Number(item.id) === Number(id)
+        );
+
+        // إذا لم يتم العثور عليه، نأخذ أول عنصر كبديل مؤقت
+        if (!foundProject) {
+          console.warn(`⚠️ المعرف (${id}) غير موجود، سيتم عرض أول مشروع متاح.`);
+          foundProject = allRecords[0];
+        }
+
+        const targetId = foundProject.id;
+        console.log("✅ تم اعتماد المشروع برقم ID:", targetId);
+
+        // جلب الصور الخاصة بهذا المشروع حصرياً من جدول portfolios عبر عمود image_url و project_id
         const { data: galleryData, error: galleryError } = await supabase
           .from("portfolios")
           .select("*")
-          .eq("project_id", parseInt(id));
+          .eq("project_id", targetId);
 
         if (galleryError) {
-          console.warn("⚠️ لا توجد صور للمشروع:", galleryError);
-        } else {
-          console.log("✅ تم جلب الصور:", galleryData);
-          setGallery(galleryData || []);
+          console.error("خطأ في جلب الصور:", galleryError.message);
         }
+        setGallery(galleryData || []);
 
-        // 3. جلب ملفات PDF من جدول pdfs المرتبطة بهذا المشروع
+        // جلب الملفات الخاصة بهذا المشروع من جدول pdfs
         const { data: docsData, error: docsError } = await supabase
           .from("pdfs")
           .select("*")
-          .eq("project_id", parseInt(id));
+          .eq("project_id", targetId);
 
         if (docsError) {
-          console.warn("⚠️ لا توجد ملفات PDF للمشروع:", docsError);
-        } else {
-          console.log("✅ تم جلب الملفات:", docsData);
-          setDocs(docsData || []);
+          console.error("خطأ في جلب المستندات:", docsError.message);
         }
+        setDocs(docsData || []);
 
-        // دمج البيانات
         setProject({
-          ...mainData,
-          category: selectedCategory || mainData.category,
+          ...foundProject,
+          category: selectedCategory || foundProject.category || "عام",
         });
 
         setError(null);
       } catch (err) {
-        console.error("❌ خطأ في جلب البيانات:", err.message);
+        console.error("❌ خطأ غير متوقع:", err.message);
         setError(err.message);
       } finally {
         setLoading(false);
@@ -85,48 +103,32 @@ export default function ProjectsData() {
     }
   }, [id, selectedCategory]);
 
-  // حالات التحميل والخطأ
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0b0a08] flex items-center justify-center text-[#e8e1d3]">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <div className="text-2xl font-bold">جاري التحميل...</div>
+      <div className="min-h-screen bg-[#070707] flex items-center justify-center text-stone-200" dir="rtl">
+        <div className="text-center space-y-4">
+          <div className="w-14 h-14 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <div className="text-xl font-bold tracking-wider">جاري تحميل تفاصيل المشروع...</div>
         </div>
       </div>
     );
   }
 
-  if (error) {
+  if (error || !project) {
     return (
-      <div className="min-h-screen bg-[#0b0a08] flex items-center justify-center text-[#e8e1d3]">
-        <div className="text-center">
-          <div className="text-2xl font-bold mb-4 text-red-500">⚠️ حدث خطأ</div>
-          <p className="text-stone-400 mb-6">{error}</p>
+      <div className="min-h-screen bg-[#070707] flex items-center justify-center text-stone-200 px-6" dir="rtl">
+        <div className="bg-[#121212] p-8 md:p-12 rounded-[2.5rem] border border-white/10 text-center max-w-lg w-full shadow-2xl">
+          <div className="w-16 h-16 bg-red-500/10 text-red-500 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-red-500/20">
+            ⚠️
+          </div>
+          <h3 className="text-2xl font-black mb-3">عذراً، حدث خطأ</h3>
+          <p className="text-stone-400 text-sm mb-8 leading-relaxed">{error}</p>
           <button
             onClick={() => navigate(-1)}
-            className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-lg transition-all"
+            className="w-full py-4 bg-orange-500 hover:bg-orange-600 text-black font-bold rounded-2xl transition-all shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2 cursor-pointer"
           >
-            العودة
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (!project) {
-    return (
-      <div className="min-h-screen bg-[#0b0a08] flex items-center justify-center text-[#e8e1d3]">
-        <div className="text-center">
-          <div className="text-2xl font-bold mb-4">🔍 المشروع غير موجود</div>
-          <p className="text-stone-400 mb-6">
-            عذراً، لم نتمكن من العثور على هذا المشروع
-          </p>
-          <button
-            onClick={() => navigate(-1)}
-            className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-lg transition-all"
-          >
-            العودة
+            <ArrowRight size={18} />
+            <span>العودة للخلف</span>
           </button>
         </div>
       </div>
@@ -134,142 +136,94 @@ export default function ProjectsData() {
   }
 
   return (
-    <div className="bg-[#0b0a08] min-h-screen text-[#e8e1d3]" dir="rtl">
-      {/* ===== قسم البطل (Hero) ===== */}
-      <section className="relative w-full min-h-screen overflow-hidden bg-[#0b0a08] flex flex-col">
-        {/* الجزء العلوي: المساحة الفارغة الفخمة */}
-        <div className="h-[15vh]" />
+    <div className="bg-[#070707] min-h-screen text-stone-100 selection:bg-orange-500 selection:text-black" dir="rtl">
+      <div className="fixed top-6 right-6 z-50">
+        <button
+          onClick={() => navigate(-1)}
+          className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-[#141414]/80 backdrop-blur-xl border border-white/10 text-stone-300 hover:text-white hover:border-orange-500/50 transition-all shadow-2xl group cursor-pointer"
+        >
+          <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+          <span className="text-xs font-bold">العودة</span>
+        </button>
+      </div>
 
-        {/* الجزء الأوسط: الصورة الرئيسية (بطاقة عائمة) */}
-        <div className="relative z-10 w-[90%] md:max-w-7xl mx-auto h-[65vh] rounded-3xl shadow-2xl shadow-black/50 overflow-hidden border border-white/5">
-          <img
-            src={project.hero_image || project.image_url}
-            alt={project.name}
-            className="absolute inset-0 w-full h-full object-cover object-center scale-100"
-          />
-          {/* تدرج خفيف فوق الصورة لضمان قراءة جزء من النص العلوي */}
-          <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/60 to-transparent" />
-        </div>
-
-        {/* الجزء السفلي: المحتوى (النصوص) */}
-        <div className="relative z-20 w-full px-6 md:px-16 -mt-20 md:-mt-32 max-w-[1500px] mx-auto">
-          <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-[#141210]/95 via-[#0b0a08]/95 to-[#070605]/95 backdrop-blur-2xl p-8 md:p-14 border border-white/10 shadow-[0_30px_100px_rgba(0,0,0,0.8)] group">
-            {/* خط جمالي مضيء من الأعلى */}
-            <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-orange-500/50 to-transparent" />
-
-            {/* تأثير إضاءة خلفية ناعمة */}
-            <div className="absolute -right-24 -bottom-24 w-96 h-96 bg-orange-600/10 rounded-full blur-[100px] pointer-events-none" />
-
-            <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-16 items-center">
-              {/* القسم الرئيسي: الفئة والعنوان */}
-              <div className="lg:col-span-7 flex flex-col justify-center">
+      <section className="relative w-full pt-28 pb-20 px-6 md:px-16 overflow-hidden">
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[350px] bg-orange-600/15 rounded-full blur-[140px] pointer-events-none" />
+        
+        <div className="max-w-6xl mx-auto relative z-10">
+          <div className="bg-gradient-to-br from-[#121212] via-[#0d0d0d] to-[#090909] p-8 md:p-14 rounded-[3rem] border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.8)] relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-transparent via-orange-500 to-transparent" />
+            
+            <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-10">
+              <div className="space-y-6 max-w-2xl">
                 {project.category && (
-                  <div className="inline-flex items-center gap-3 mb-6 self-start px-4 py-2 rounded-full bg-white/5 border border-white/10 backdrop-blur-md">
-                    <span className="relative flex h-2.5 w-2.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-orange-500"></span>
-                    </span>
-                    <span className="text-orange-400 text-xs font-bold uppercase tracking-widest">
-                      {project.category}
-                    </span>
+                  <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-400 text-xs font-bold tracking-widest uppercase">
+                    <Sparkles size={14} />
+                    <span>{project.category}</span>
                   </div>
                 )}
-
-                <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black text-[#f6f1e7] tracking-tighter leading-[1.05] drop-shadow-lg">
-                  {project.name}
+                
+                <h1 className="text-4xl sm:text-6xl font-black text-white tracking-tight leading-[1.1]">
+                  {project.name || project.title}
                 </h1>
-              </div>
 
-              {/* القسم الثانوي: الوصف وزر التفاعل */}
-              <div className="lg:col-span-5 flex flex-col justify-between gap-8 lg:border-r lg:border-white/10 lg:pr-12">
                 {project.description && (
-                  <p className="text-[#d4cbba]/90 text-base md:text-lg font-light leading-relaxed">
+                  <p className="text-stone-300/80 text-base md:text-lg leading-relaxed font-light">
                     {project.description}
                   </p>
                 )}
+              </div>
 
-                <div className="flex items-center gap-6 pt-2">
-                  {/* تم إضافة دالة الـ onClick لضمان النزول بنعومة */}
+              <div className="flex flex-col sm:flex-row lg:flex-col gap-4 w-full lg:w-auto min-w-[200px]">
+                {gallery.length > 0 && (
                   <button
-                    onClick={() => {
-                      const galleryElement = document.getElementById("gallery");
-                      if (galleryElement) {
-                        galleryElement.scrollIntoView({ behavior: "smooth" });
-                      }
-                    }}
-                    className="group/btn relative inline-flex items-center justify-between gap-8 px-8 py-4 bg-orange-500 text-black font-bold text-sm tracking-wide rounded-2xl overflow-hidden shadow-xl shadow-orange-500/20 hover:bg-[#f6f1e7] transition-all duration-300 w-full sm:w-auto cursor-pointer"
+                    onClick={() => document.getElementById("gallery")?.scrollIntoView({ behavior: "smooth" })}
+                    className="px-6 py-4 rounded-2xl bg-orange-500 hover:bg-orange-600 text-black font-extrabold text-sm transition-all shadow-lg shadow-orange-500/20 flex items-center justify-center gap-3 cursor-pointer"
                   >
-                    <span className="relative z-10">مشاهدة المعرض</span>
-                    <div className="relative z-10 w-8 h-8 rounded-xl bg-black text-white flex items-center justify-center group-hover/btn:bg-orange-500 group-hover/btn:text-black transition-colors">
-                      <svg
-                        className="w-4 h-4 -rotate-45 group-hover/btn:rotate-0 transition-transform duration-300"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="2.5"
-                          d="M14 5l7 7m0 0l-7 7m7-7H3"
-                        />
-                      </svg>
-                    </div>
+                    <ImageIcon size={18} />
+                    <span>استعراض المعرض ({gallery.length})</span>
                   </button>
-                </div>
+                )}
+                {docs.length > 0 && (
+                  <button
+                    onClick={() => document.getElementById("documents")?.scrollIntoView({ behavior: "smooth" })}
+                    className="px-6 py-4 rounded-2xl bg-white/5 hover:bg-white/10 text-white font-bold text-sm border border-white/10 transition-all flex items-center justify-center gap-3 cursor-pointer"
+                  >
+                    <FileText size={18} className="text-orange-400" />
+                    <span>الملفات المرفقة ({docs.length})</span>
+                  </button>
+                )}
               </div>
             </div>
           </div>
         </div>
-
-        {/* تدرج سفلي للخلفية لدمج القسم مع ما يليه */}
-        <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-[#0b0a08] to-transparent pointer-events-none" />
       </section>
 
-      {/* ===== شبكة الصور (Gallery) من جدول portfolios ===== */}
       {gallery && gallery.length > 0 && (
-        <section
-          className="px-6 md:px-20 py-20 border-t border-white/10"
-          id="gallery"
-        >
-          <div className="max-w-7xl mx-auto">
-            <div className="text-center max-w-3xl mx-auto mb-20">
-              {/* شارة القسم العلوية */}
-              <div className="inline-flex items-center gap-3 text-orange-400 font-extrabold text-xs tracking-[0.25em] uppercase mb-6 bg-orange-500/10 backdrop-blur-md px-5 py-2 rounded-full border border-orange-500/20 shadow-lg shadow-orange-500/5">
-                <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
-                <span>معرض الأعمال</span>
+        <section id="gallery" className="px-6 md:px-16 py-20 border-t border-white/5 bg-[#0a0a0a]/50">
+          <div className="max-w-6xl mx-auto">
+            <div className="flex items-center gap-3 mb-12">
+              <div className="p-3 bg-orange-500/10 text-orange-400 rounded-2xl border border-orange-500/20">
+                <ImageIcon size={24} />
               </div>
-
-              {/* العنوان الرئيسي */}
-              <h2 className="text-4xl md:text-6xl font-black text-[#f6f1e7] tracking-tight leading-[1.2] mb-6">
-                أبرز أعمالنا المبدعة
-              </h2>
-
-              {/* الوصف */}
-              <p className="text-[#a39a87] text-base md:text-lg leading-relaxed max-w-2xl mx-auto font-light">
-                نستعرض هنا نخبة من أعمالنا وتصميماتنا السابقة التي تعكس خبرتنا
-                التراكمية واهتمامنا بأدق التفاصيل لتحقيق أفضل النتائج.
-              </p>
-
-              {/* خط فاصل جمالي تحت العنوان */}
-              <div className="mt-8 w-24 h-1 bg-gradient-to-r from-transparent via-orange-500 to-transparent mx-auto rounded-full opacity-60" />
+              <div>
+                <h2 className="text-2xl md:text-3xl font-black text-white">معرض الصور</h2>
+                <p className="text-stone-400 text-xs mt-0.5">انقر على أي صورة لتكبيرها وعرضها بحجم كامل</p>
+              </div>
             </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               {gallery.map((item, index) => (
                 <div
                   key={item.id || index}
-                  className="bg-[#0b0a08] rounded-2xl overflow-hidden border border-white/10 hover:border-white/20 transition-all"
+                  onClick={() => setSelectedImage(item.image_url)}
+                  className="group relative bg-[#121212] rounded-3xl overflow-hidden border border-white/10 hover:border-orange-500/45 transition-all duration-500 shadow-xl cursor-pointer aspect-[1080/1350]"
                 >
                   <img
                     src={item.image_url}
-                    alt={item.title || `صورة ${index + 1}`}
-                    className="w-full aspect-[4/5] object-cover !transform-none !scale-100"
-                    onError={(e) => {
-                      e.target.src =
-                        "https://via.placeholder.com/1080x1350?text=No+Image";
-                    }}
+                    alt={`صورة المعرض ${index + 1}`}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                   />
-               
                 </div>
               ))}
             </div>
@@ -277,79 +231,65 @@ export default function ProjectsData() {
         </section>
       )}
 
-      {/* ===== عرض ملفات الـ PDF من جدول pdfs ===== */}
-    {docs && docs.length > 0 && (
-  <section className="px-6 md:px-20 py-20 border-t border-[#e8e1d3]/10">
-    <div className="max-w-7xl mx-auto">
-      <div className="text-center max-w-3xl mx-auto mb-20">
-        {/* شارة القسم العلوية */}
-        <div className="inline-flex items-center gap-3 text-orange-400 font-extrabold text-xs tracking-[0.25em] uppercase mb-6 bg-orange-500/10 backdrop-blur-md px-5 py-2 rounded-full border border-orange-500/20 shadow-lg shadow-orange-500/5">
-          <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
-          <span>الملفات المرفقة</span>
-        </div>
-
-        {/* العنوان الرئيسي */}
-        <h2 className="text-4xl md:text-6xl font-black text-[#f6f1e7] tracking-tight leading-[1.2] mb-6">
-          المستندات والملفات
-        </h2>
-
-        {/* الوصف */}
-        <p className="text-[#a39a87] text-base md:text-lg leading-relaxed max-w-2xl mx-auto font-light">
-          تصفح وقم بتحميل كافة المستندات والملفات التقنية الخاصة بالمشروع
-          للاطلاع على التفاصيل الكاملة والمواصفات.
-        </p>
-
-        {/* خط فاصل جمالي تحت العنوان */}
-        <div className="mt-8 w-24 h-1 bg-gradient-to-r from-transparent via-orange-500 to-transparent mx-auto rounded-full opacity-60" />
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {docs.map((doc, index) => (
-          <a
-            key={doc.id || index}
-            href={doc.file_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="block rounded-3xl overflow-hidden border border-[#e8e1d3]/10 transition-all duration-300"
+      {selectedImage && (
+        <div 
+          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 md:p-10"
+          onClick={() => setSelectedImage(null)}
+        >
+          <button
+            onClick={() => setSelectedImage(null)}
+            className="absolute top-6 left-6 z-50 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
           >
-            {doc.preview_image && (
-              <div className="relative overflow-hidden bg-black h-[300px]">
-                <img
-                  src={doc.preview_image}
-                  alt={doc.title}
-                  className="w-full h-full object-cover !transform-none !scale-100"
-                  onError={(e) => {
-                    e.target.src =
-                      "https://via.placeholder.com/600x300?text=PDF";
-                  }}
-                />
-                <div className="absolute inset-0 bg-black/40" />
-              </div>
-            )}
-            <div className="p-6 bg-[#0b0a08]">
-              <h3 className="text-xl font-bold text-[#f6f1e7]">
-                {doc.title}
-              </h3>
-              <p className="text-[#a39a87] text-sm mt-2">
-                👆 انقر لفتح الملف
-              </p>
-            </div>
-          </a>
-        ))}
-      </div>
-    </div>
-  </section>
-)}
-
-      {/* رسالة إذا لم يكن هناك معرض أو ملفات */}
-      {(!gallery || gallery.length === 0) && (!docs || docs.length === 0) && (
-        <section className="px-6 md:px-20 py-20 text-center border-t border-white/10">
-          <p className="text-[#a39a87] text-lg">
-            لا توجد صور أو ملفات إضافية لهذا المشروع حالياً
-          </p>
-        </section>
+            <X size={24} />
+          </button>
+          <div className="relative max-w-5xl max-h-[90vh] overflow-hidden rounded-2xl" onClick={(e) => e.stopPropagation()}>
+            <img src={selectedImage} alt="صورة مكبرة" className="max-w-full max-h-[85vh] object-contain rounded-2xl shadow-2xl mx-auto" />
+          </div>
+        </div>
       )}
 
+      {docs && docs.length > 0 && (
+        <section id="documents" className="px-6 md:px-16 py-20 border-t border-white/5">
+          <div className="max-w-6xl mx-auto">
+            <div className="flex items-center gap-3 mb-12">
+              <div className="p-3 bg-purple-500/10 text-purple-400 rounded-2xl border border-purple-500/20">
+                <FileText size={24} />
+              </div>
+              <div>
+                <h2 className="text-2xl md:text-3xl font-black text-white">المستندات والملفات</h2>
+                <p className="text-stone-400 text-xs mt-0.5">الكتالوجات والملفات التقنية المتاحة للتحميل</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {docs.map((doc, index) => (
+                <a
+                  key={doc.id || index}
+                  href={doc.file_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group bg-[#121212] hover:bg-[#181818] p-6 rounded-3xl border border-white/10 hover:border-purple-500/50 transition-all duration-300 flex items-center justify-between gap-4 shadow-xl"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 rounded-2xl bg-purple-500/10 text-purple-400 flex items-center justify-center border border-purple-500/20 group-hover:scale-110 transition-transform">
+                      <FileText size={28} />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-white group-hover:text-purple-300 transition-colors">
+                        {doc.title || `ملف PDF ${index + 1}`}
+                      </h3>
+                      <p className="text-stone-400 text-xs mt-1">اضغط للعرض أو التحميل</p>
+                    </div>
+                  </div>
+                  <div className="w-10 h-10 rounded-xl bg-white/5 group-hover:bg-purple-500 group-hover:text-black text-white flex items-center justify-center transition-all">
+                    <ExternalLink size={18} />
+                  </div>
+                </a>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
     </div>
   );
 }
